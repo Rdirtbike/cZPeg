@@ -1,21 +1,12 @@
 const std = @import("std");
 
-var tests: *std.build.Step = undefined;
-
 pub fn build(b: *std.build.Builder) void {
-    tests = b.step("test", "Run tests");
-    addTest(b, "src/czpeg.zig");
-    addTest(b, "src/czpeg/re.zig");
+    const mode = b.standardReleaseOptions();
 
-    b.installDirectory(.{
-        .source_dir = "src",
-        .install_dir = .Lib,
-        .install_subdir = "zig",
-    });
-}
+    const main_test = b.addTest("src/czpeg.zig");
+    main_test.addPackagePath("czpeg", "src/czpeg.zig");
+    main_test.setBuildMode(mode);
 
-fn addTest(b: anytype, src: []const u8) void {
-    const t = b.addTest(src);
-    t.setBuildMode(b.standardReleaseOptions());
-    tests.dependOn(&t.step);
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&main_test.step);
 }

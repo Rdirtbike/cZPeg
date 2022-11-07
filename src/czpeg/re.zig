@@ -40,12 +40,10 @@ pub fn compile(comptime re: []const u8, comptime args: anytype) type {
                 P.grok(type, genRep(1, -1).gen, "+"),
                 P.grok(type, genRep(0, -1).gen, "*"),
                 P.grok(type, genRep(0, 1).gen, "?"),
-                P.grok(type, rep, .{
-                    "^", P.set("+-").cap().rep(0, 1), num
-                }),
+                P.grok(type, rep, .{ "^", P.set("+-").cap().rep(0, 1), num }),
                 //.{ "=>", spc, name }, // FIXME TBD
             },
-            spc
+            spc,
         }).foldRep(0, -1, P.cat(pri, spc), {}, foldSfx);
 
         fn foldSfx(comptime acc: *type, comptime composer: type) void {
@@ -86,7 +84,9 @@ pub fn compile(comptime re: []const u8, comptime args: anytype) type {
 
         fn genConst(comptime pat: type) type {
             return struct {
-                fn gen() type { return pat; }
+                fn gen() type {
+                    return pat;
+                }
             };
         }
 
@@ -95,17 +95,17 @@ pub fn compile(comptime re: []const u8, comptime args: anytype) type {
         }
     };
 
-    comptime const merr = RE.pattern.matchLean(re);
-    comptime const m =
-        if (comptime (@typeInfo(@TypeOf(merr)) != .ErrorUnion)) merr
-        else if (merr) |v| v
-        else |e| @compileError(
-            "error " ++ @errorName(e) ++ " while parsing pattern: '" ++ re ++ "'");
+    const merr = comptime RE.pattern.matchLean(re);
+    const m = comptime if (@typeInfo(@TypeOf(merr)) != .ErrorUnion)
+        merr
+    else if (merr) |v|
+        v
+    else |e|
+        @compileError("error " ++ @errorName(e) ++ " while parsing pattern: '" ++ re ++ "'");
     if (comptime (m == null))
         @compileError("invalid pattern: \"" ++ re ++ "\"");
     return m.?;
 }
-
 
 const spc = P.alt(.{
     classes.s,
@@ -114,17 +114,10 @@ const spc = P.alt(.{
 
 const name = word0._(word.more(0));
 
-const cls = P.seq(.{
-    "[",
-    P.rep(0, 1, P.cap("^")),
-    P.not("]")._(item).foldRep(0, -1, item, {}, foldAlt),
-    "]"
-}).grok(type, genCls);
+const cls = P.seq(.{ "[", P.rep(0, 1, P.cap("^")), P.not("]")._(item).foldRep(0, -1, item, {}, foldAlt), "]" }).grok(type, genCls);
 
 fn genCls(comptime s: anytype) ?type {
-    return
-        if (s[0] == null) s[1]
-        else s[1].inv();
+    return if (s[0] == null) s[1] else s[1].inv();
 }
 
 fn foldAlt(comptime acc: *type, comptime pat: type) void {
@@ -137,16 +130,11 @@ fn genChar(comptime s: []const u8) type {
     return R.charset(1 << s[0]);
 }
 
-const range = P.seq(.{
-    P.cap(1),
-    "-",
-    P.charset(~(@as(u256, 1) << ']')).cap()
-}).grok(type, genRange);
+const range = P.seq(.{ P.cap(1), "-", P.charset(~(@as(u256, 1) << ']')).cap() }).grok(type, genRange);
 
 fn genRange(comptime s: anytype) type {
     return R.span(s[0][0], s[1][0]);
 }
-
 
 const def = P.cat("%", name.grok(type, getDef));
 
@@ -159,11 +147,11 @@ const str = P.alt(.{
     .{ "\"", P.not("\"")._(1).more(0).cap(), "\"" },
 });
 
-const ParseError = error{Overflow,InvalidCharacter};
+const ParseError = error{ Overflow, InvalidCharacter };
 const num = classes.d.more(1).grok(ParseError!u32, parseU32Dec);
 
 fn parseU32Dec(s: []const u8) !u32 {
-    return try std.fmt.parseInt(u32, s, 10);
+    return std.fmt.parseInt(u32, s, 10);
 }
 
 // use "word" definition consistent w/PCRE and LPeg (includes '_')
@@ -171,7 +159,7 @@ fn parseU32Dec(s: []const u8) !u32 {
 const word0 = R.alt(.{ "_", R.span('A', 'Z'), R.span('a', 'z') });
 const word = R.alt(.{ word0, R.span('0', '9') });
 
-fn invCls(comptime f: fn(u8)bool) type {
+fn invCls(comptime _: fn (u8) bool) type {
     return R.cls(asc.isAlpha).inv();
 }
 
@@ -199,7 +187,6 @@ const classes = .{
     .X = invCls(asc.isXDigit),
 };
 
-
 //----------------------------------------------------------------------------
 const testing = std.testing;
 const expect = testing.expect;
@@ -216,7 +203,7 @@ const chkError = util.chkError;
 
 fn ctChkNoM(comptime pat: anytype, comptime s: []const u8) void {
     comptime var p = czpeg.Parser.init(s, &util.noalloc);
-    comptime const m = expectOk(p.match(pat));
+    const m = comptime expectOk(p.match(pat));
     if (comptime (m != null)) {
         @compileLog("length", comptime p.pos(), "match", m);
         @compileError("expected no match, found match");
@@ -227,14 +214,11 @@ fn ctChkNoM(comptime pat: anytype, comptime s: []const u8) void {
     }
 }
 
-fn ctChkCap(comptime pat: anytype, comptime s: []const u8, comptime n: usize)
-    czpeg.MatchType(P.pat(pat))
-{
+fn ctChkCap(comptime pat: anytype, comptime s: []const u8, comptime n: usize) czpeg.MatchType(P.pat(pat)) {
     comptime var p = czpeg.Parser.init(s, &util.noalloc);
-    comptime const m = expectOk(p.match(pat));
+    const m = comptime expectOk(p.match(pat));
     if (comptime (m == null))
-        @compileError("expected match, found null ("
-                      ++ @typeName(@TypeOf(m)) ++ ")");
+        @compileError("expected match, found null (" ++ @typeName(@TypeOf(m)) ++ ")");
     if (comptime (n != p.pos())) {
         @compileLog("expected", n, "actual", comptime p.pos());
         @compileError("match length mismatch");
@@ -243,270 +227,268 @@ fn ctChkCap(comptime pat: anytype, comptime s: []const u8, comptime n: usize)
 }
 
 fn ctChkMatch(comptime pat: anytype, comptime s: []const u8, comptime n: usize) void {
-    comptime const m = ctChkCap(pat, s, n);
+    const m = comptime ctChkCap(pat, s, n);
     if (comptime (m != {}))
-        @compileError("expected non-capturing match, found "
-                      ++ @typeName(@TypeOf(m)));
+        @compileError("expected non-capturing match, found " ++ @typeName(@TypeOf(m)));
 }
 
 pub fn chkFull(comptime pat: anytype, s: []const u8) void {
-    chkMatch(pat, s, s.len);
+    try chkMatch(pat, s, s.len);
 }
 
-
 test "spc" {
-    chkMatch(spc, "", 0);
-    chkMatch(spc, "a", 0);
-    chkMatch(spc, " ", 1);
-    chkMatch(spc, " \t\n\r :O", 5);
+    try chkMatch(spc, "", 0);
+    try chkMatch(spc, "a", 0);
+    try chkMatch(spc, " ", 1);
+    try chkMatch(spc, " \t\n\r :O", 5);
 }
 
 test "name" {
-    chkNoM(name, "");
-    chkNoM(name, "42");
-    chkMatch(name, "a ", 1);
-    chkMatch(name, "_priv", 5);
-    chkMatch(name, "yomama8yodog*", 12);
-    chkMatch(name, "a_b_", 4);
+    try chkNoM(name, "");
+    try chkNoM(name, "42");
+    try chkMatch(name, "a ", 1);
+    try chkMatch(name, "_priv", 5);
+    try chkMatch(name, "yomama8yodog*", 12);
+    try chkMatch(name, "a_b_", 4);
 }
 
 test "num" {
-    chkNoM(num, "");
-    chkNoM(num, "a");
-    expectEqual(@as(u32, 0), chkCap(num, "0", 1));
-    expectEqual(@as(u32, 42), chkCap(num, "42", 2));
-    chkError(num, "9999999999", error.Overflow);
+    try chkNoM(num, "");
+    try chkNoM(num, "a");
+    try expectEqual(@as(u32, 0), try chkCap(num, "0", 1));
+    try expectEqual(@as(u32, 42), try chkCap(num, "42", 2));
+    try chkError(num, "9999999999", error.Overflow);
 }
 
 test "str" {
-    chkNoM(str, "");
-    chkNoM(str, "a");
-    expectEqual(@as([]const u8, "a"), chkCap(str, "'a'b", 3));
-    expectEqual(@as([]const u8, "yomama"), chkCap(str, "\"yomama\"", 8));
+    try chkNoM(str, "");
+    try chkNoM(str, "a");
+    try expectEqual(@as([]const u8, "a"), try chkCap(str, "'a'b", 3));
+    try expectEqual(@as([]const u8, "yomama"), try chkCap(str, "\"yomama\"", 8));
 }
 
 test "def" {
     ctChkNoM(def, "");
     ctChkNoM(def, "d");
     const p = ctChkCap(def, "%d", 2);
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "a");
-    chkMatch(p, "42", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "a");
+    try chkMatch(p, "42", 1);
 }
 
 test "cls ]" {
     const p = ctChkCap(cls, "[]]", 3);
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "");
-    chkNoM(p, "a");
-    chkMatch(p, "]", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "");
+    try chkNoM(p, "a");
+    try chkMatch(p, "]", 1);
 }
 
 test "cls range" {
     const p = ctChkCap(cls, "[w-y]", 5);
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "");
-    chkNoM(p, "]");
-    chkNoM(p, "v");
-    chkNoM(p, "z");
-    chkMatch(p, "w", 1);
-    chkMatch(p, "x", 1);
-    chkMatch(p, "y", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "");
+    try chkNoM(p, "]");
+    try chkNoM(p, "v");
+    try chkNoM(p, "z");
+    try chkMatch(p, "w", 1);
+    try chkMatch(p, "x", 1);
+    try chkMatch(p, "y", 1);
 }
 
 test "cls def" {
     const p = ctChkCap(cls, "[%x]", 4);
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "");
-    chkNoM(p, "g");
-    chkMatch(p, "a", 1);
-    chkMatch(p, "A", 1);
-    chkMatch(p, "5", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "");
+    try chkNoM(p, "g");
+    try chkMatch(p, "a", 1);
+    try chkMatch(p, "A", 1);
+    try chkMatch(p, "5", 1);
 }
 
 test "cls" {
     ctChkNoM(cls, "");
 
     const p = ctChkCap(cls, "[]_a-c%d%u-]", 12);
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "");
-    chkNoM(p, "d");
-    chkNoM(p, "z");
-    chkNoM(p, "[");
-    chkNoM(p, ".");
-    chkNoM(p, "%");
-    chkMatch(p, "]", 1);
-    chkMatch(p, "8", 1);
-    chkMatch(p, "M", 1);
-    chkMatch(p, "a", 1);
-    chkMatch(p, "b", 1);
-    chkMatch(p, "c", 1);
-    chkMatch(p, "_", 1);
-    chkMatch(p, "-", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "");
+    try chkNoM(p, "d");
+    try chkNoM(p, "z");
+    try chkNoM(p, "[");
+    try chkNoM(p, ".");
+    try chkNoM(p, "%");
+    try chkMatch(p, "]", 1);
+    try chkMatch(p, "8", 1);
+    try chkMatch(p, "M", 1);
+    try chkMatch(p, "a", 1);
+    try chkMatch(p, "b", 1);
+    try chkMatch(p, "c", 1);
+    try chkMatch(p, "_", 1);
+    try chkMatch(p, "-", 1);
 }
 
 test "cls neg" {
     const p = ctChkCap(cls, "[^]_a-c%d%u-]", 13);
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "");
-    chkNoM(p, "]");
-    chkNoM(p, "8");
-    chkNoM(p, "M");
-    chkNoM(p, "a");
-    chkNoM(p, "b");
-    chkNoM(p, "c");
-    chkNoM(p, "_");
-    chkNoM(p, "-");
-    chkMatch(p, "d", 1);
-    chkMatch(p, "z", 1);
-    chkMatch(p, "[", 1);
-    chkMatch(p, ".", 1);
-    chkMatch(p, "%", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "");
+    try chkNoM(p, "]");
+    try chkNoM(p, "8");
+    try chkNoM(p, "M");
+    try chkNoM(p, "a");
+    try chkNoM(p, "b");
+    try chkNoM(p, "c");
+    try chkNoM(p, "_");
+    try chkNoM(p, "-");
+    try chkMatch(p, "d", 1);
+    try chkMatch(p, "z", 1);
+    try chkMatch(p, "[", 1);
+    try chkMatch(p, ".", 1);
+    try chkMatch(p, "%", 1);
 }
 
 test "compile str" {
     const p = compile("'a'", .{});
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "b");
-    chkMatch(p, "aa", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "b");
+    try chkMatch(p, "aa", 1);
 }
 
 test "compile cls" {
     const p = compile(" [ac] ", .{});
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "b");
-    chkMatch(p, "a", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "b");
+    try chkMatch(p, "a", 1);
 }
 
 test "compile def" {
     const p = compile("%d", .{});
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "c");
-    chkMatch(p, "4", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "c");
+    try chkMatch(p, "4", 1);
 }
 
 test "compile any(1)" {
     const p = compile(".", .{});
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "");
-    chkMatch(p, "ab", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "");
+    try chkMatch(p, "ab", 1);
 }
 
 test "group" {
     const p = compile("((%a()))", .{});
-    expect(@TypeOf(p) == type);
-    chkNoM(p, "0");
-    chkMatch(p, "za", 1);
+    try expect(@TypeOf(p) == type);
+    try chkNoM(p, "0");
+    try chkMatch(p, "za", 1);
 }
 
 test "rep +" {
-    comptime const p = compile("'a'+", .{});
-    chkNoM(p, "");
-    chkNoM(p, "b");
-    chkMatch(p, "a", 1);
-    chkMatch(p, "aaa", 3);
-    chkMatch(p, "aaba", 2);
+    const p = comptime compile("'a'+", .{});
+    try chkNoM(p, "");
+    try chkNoM(p, "b");
+    try chkMatch(p, "a", 1);
+    try chkMatch(p, "aaa", 3);
+    try chkMatch(p, "aaba", 2);
 }
 
 test "rep *" {
-    comptime const p = compile("'a' *", .{});
-    chkMatch(p, "", 0);
-    chkMatch(p, "b", 0);
-    chkMatch(p, "a", 1);
-    chkMatch(p, "aaa", 3);
-    chkMatch(p, "aaba", 2);
+    const p = comptime compile("'a' *", .{});
+    try chkMatch(p, "", 0);
+    try chkMatch(p, "b", 0);
+    try chkMatch(p, "a", 1);
+    try chkMatch(p, "aaa", 3);
+    try chkMatch(p, "aaba", 2);
 }
 
 test "rep ?" {
-    comptime const p = compile("'a'?", .{});
-    chkMatch(p, "", 0);
-    chkMatch(p, "b", 0);
-    chkMatch(p, "a", 1);
-    chkMatch(p, "aaa", 1);
+    const p = comptime compile("'a'?", .{});
+    try chkMatch(p, "", 0);
+    try chkMatch(p, "b", 0);
+    try chkMatch(p, "a", 1);
+    try chkMatch(p, "aaa", 1);
 }
 
 test "rep n" {
-    comptime const p = compile("'a'^3", .{});
-    chkNoM(p, "");
-    chkNoM(p, "aa");
-    chkNoM(p, "aba");
-    chkMatch(p, "aaa", 3);
-    chkMatch(p, "aaaa", 3);
+    const p = comptime compile("'a'^3", .{});
+    try chkNoM(p, "");
+    try chkNoM(p, "aa");
+    try chkNoM(p, "aba");
+    try chkMatch(p, "aaa", 3);
+    try chkMatch(p, "aaaa", 3);
 }
 
 test "rep +n" {
-    comptime const p = compile("'a'^+3", .{});
-    chkNoM(p, "");
-    chkNoM(p, "aa");
-    chkNoM(p, "aba");
-    chkMatch(p, "aaa", 3);
-    chkMatch(p, "aaaa", 4);
-    chkMatch(p, "aaaba", 3);
+    const p = comptime compile("'a'^+3", .{});
+    try chkNoM(p, "");
+    try chkNoM(p, "aa");
+    try chkNoM(p, "aba");
+    try chkMatch(p, "aaa", 3);
+    try chkMatch(p, "aaaa", 4);
+    try chkMatch(p, "aaaba", 3);
 }
 
 test "rep -n" {
-    comptime const p = compile("'a'^-3", .{});
-    chkMatch(p, "", 0);
-    chkMatch(p, "b", 0);
-    chkMatch(p, "a", 1);
-    chkMatch(p, "aa", 2);
-    chkMatch(p, "aaa", 3);
-    chkMatch(p, "aaaa", 3);
-    chkMatch(p, "ababa", 1);
+    const p = comptime compile("'a'^-3", .{});
+    try chkMatch(p, "", 0);
+    try chkMatch(p, "b", 0);
+    try chkMatch(p, "a", 1);
+    try chkMatch(p, "aa", 2);
+    try chkMatch(p, "aaa", 3);
+    try chkMatch(p, "aaaa", 3);
+    try chkMatch(p, "ababa", 1);
 }
 
 test "capture pos" {
     {
         const p = compile("{}", .{});
-        expect(@TypeOf(p) == type);
-        expectEqual(@as(usize, 0), chkCap(p, " ", 0));
+        try expect(@TypeOf(p) == type);
+        try expectEqual(@as(usize, 0), try chkCap(p, " ", 0));
     }
     {
         const p = compile("'a'+ {} 'b'*", .{});
-        expect(@TypeOf(p) == type);
-        chkNoM(p, "");
-        chkNoM(p, "b");
-        expectEqual(@as(usize, 1), chkCap(p, "a", 1));
-        expectEqual(@as(usize, 2), chkCap(p, "aab", 3));
+        try expect(@TypeOf(p) == type);
+        try chkNoM(p, "");
+        try chkNoM(p, "b");
+        try expectEqual(@as(usize, 1), try chkCap(p, "a", 1));
+        try expectEqual(@as(usize, 2), try chkCap(p, "aab", 3));
     }
 }
 
 test "capture raw" {
     const p = compile("'Hello' %s+ {%w+}'!'", .{});
-    chkNoM(p, "Hello yomama");
-    expectStr("world", chkCap(p, "Hello world!", 12));
+    try chkNoM(p, "Hello yomama");
+    try expectStr("world", try chkCap(p, "Hello world!", 12));
 }
 
 test "pfx" {
     {
         const p = compile("&'a'", .{});
-        chkNoM(p, "ba");
-        chkMatch(p, "aa", 0);
+        try chkNoM(p, "ba");
+        try chkMatch(p, "aa", 0);
     }
     {
         const p = compile("! 'a'", .{});
-        chkNoM(p, "aa");
-        chkMatch(p, "ba", 0);
+        try chkNoM(p, "aa");
+        try chkMatch(p, "ba", 0);
     }
 }
 
 test "seq" {
     const p = compile("'a'+ 'b'+ 'c'*", .{});
-    chkNoM(p, "");
-    chkNoM(p, "a");
-    chkNoM(p, "ba");
-    chkMatch(p, "ab", 2);
-    chkMatch(p, "abc", 3);
-    chkMatch(p, "abcccd", 5);
-    chkMatch(p, "aaaabb", 6);
+    try chkNoM(p, "");
+    try chkNoM(p, "a");
+    try chkNoM(p, "ba");
+    try chkMatch(p, "ab", 2);
+    try chkMatch(p, "abc", 3);
+    try chkMatch(p, "abcccd", 5);
+    try chkMatch(p, "aaaabb", 6);
 }
 
 test "alt" {
     const p = compile("'a' / 'ab' / 'ba'", .{});
-    chkNoM(p, "");
-    chkMatch(p, "aaa", 1);
-    chkMatch(p, "aba", 1); // NB 'a' matches first!
-    chkMatch(p, "baa", 2);
+    try chkNoM(p, "");
+    try chkMatch(p, "aaa", 1);
+    try chkMatch(p, "aba", 1); // NB 'a' matches first!
+    try chkMatch(p, "baa", 2);
 }
 
 // re grammar
@@ -601,7 +583,7 @@ test "PEG pattern grammar" {
         };
     };
 
-    chkNoM(PEG.pattern, "<-");
+    try chkNoM(PEG.pattern, "<-");
     chkFull(PEG.pattern, "exp !.");
     chkFull(PEG.pattern, "S seq ('/' S seq)*");
     chkFull(PEG.pattern, "prefix*");
